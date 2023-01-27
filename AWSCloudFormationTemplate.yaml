@@ -1,0 +1,493 @@
+# CloudFormation Building Blocks
+
+# Template's components =>
+# TemplateFormatVersion: which allows you to identify the capabilities of the template (by default 2010-09-09)
+# Description: which gives you comments about the template.
+# Transform: to specify one or more Macros that are going to be used to process templates.
+# Metadata: Metadata does have only impacts onto CloudFormation designer. So we defined some metadata with some CloudFormation::Interface
+# Resources: And this is what we've seen so far, which is how and this is the only administrator section actually within CloudFormation templates which is where you define your logical resources within it.
+# Parameters: to have dynamic inputs for your templates.
+# Mappings: to have static variables for your template.
+# Outputs: to have references to what has been created.
+# Conditionals: to list which is a list of conditions to perform resource creation 
+# Rules: to validate a parameter during stack creation/update.
+
+# Template helpers
+# References: to understand how to link these logical resources together.
+# Functions: as well to transform some inputs within our CloudFormation templates.
+
+# Section: Temp
+# End-Section: Temp
+
+# Section: AWSTemplateFormatVersion
+AWSTemplateFormatVersion: '2010-09-09'
+# End-Section: AWSTemplateFormatVersion
+
+# Section: Description
+Description: 'AWS CloudFormation Sample Template Sample template EIP_With_Association:
+  This template shows how to associate an Elastic IP address with an Amazon EC2 instance
+  - you can use this same technique to associate an EC2 instance with an Elastic IP
+  Address that is not created inside the template by replacing the EIP reference in
+  the AWS::EC2::EIPAssoication resource type with the IP address of the external EIP.
+  **WARNING** This template creates an Amazon EC2 instance and an Elastic IP Address.
+  You will be billed for the AWS resources used if you create a stack from this template.'
+# End-Section: Description
+
+# Section: Transform
+Transform:
+# End-Section: Transform
+
+# Section: Mappings
+Mappings:
+  MappAWSRegionArch2AMI:
+    af-south-1:
+      HVM64: ami-06db08e8636583118
+    ap-east-1:
+      HVM64: ami-0921e2da2f22f9617
+    ap-northeast-1:
+      HVM64: ami-06098fd00463352b6
+    ap-northeast-2:
+      HVM64: ami-07464b2b9929898f8
+    ap-northeast-3:
+      HVM64: ami-0b96303a469fa0678
+    ap-south-1:
+      HVM64: ami-0bcf5425cdc1d8a85
+    ap-southeast-1:
+      HVM64: ami-03ca998611da0fe12
+    ap-southeast-2:
+      HVM64: ami-06202e06492f46177
+    ca-central-1:
+      HVM64: ami-09934b230a2c41883
+    eu-central-1:
+      HVM64: ami-0db9040eb3ab74509
+    eu-north-1:
+      HVM64: ami-02baf2b4223a343e8
+    eu-south-1:
+      HVM64: ami-081e7f992eee19465
+    eu-west-1:
+      HVM64: ami-0ffea00000f287d30
+    eu-west-2:
+      HVM64: ami-0fbec3e0504ee1970
+    eu-west-3:
+      HVM64: ami-00dd995cb6f0a5219
+    me-south-1:
+      HVM64: ami-0502022ce8bfa56a9
+    sa-east-1:
+      HVM64: ami-0c27c96aaa148ba6d
+    us-east-1:
+      HVM64: ami-0742b4e673072066f
+    us-east-2:
+      HVM64: ami-05d72852800cbf29e
+    us-west-1:
+      HVM64: ami-0577b787189839998
+    us-west-2:
+      HVM64: ami-0518bb0e75d3619ca
+  
+  MappEnvironmentToInstanceType:
+    development:
+      instanceType: t2.micro
+    systest:
+      instanceType: t2.micro
+    uat:
+      instanceType: t2.micro            
+    production:
+    # we want a bigger instance type in production
+      instanceType: t2.small
+
+# End-Section: Mappings
+
+# Section: Parameters
+Parameters:
+
+  ParamEnvironmentName:
+    Description: Environment Name
+    Type: String
+    AllowedValues: [development, systest, uat, production]
+    ConstraintDescription: must be development or production
+
+  ParamConditionalEnvironmentTypes:
+    Description: Environment type.
+    Default: dev
+    Type: String
+    AllowedValues:
+      - prod
+      - test
+      - dev
+    ConstraintDescription: must specify prod or test.
+
+  ParamS3BucketName:
+    Type: String
+
+  ParamDBPwd:
+    NoEcho: true
+    Description: The database admin account password (won't be echoed)
+    Type: String
+  
+  ParamEc2InstanceTypeSsmDev:
+    Description: WebServer EC2 instance type
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /dev/ec2/instanceType 
+
+  ParamEc2InstanceTypeSsmProd:
+    Description: WebServer EC2 instance type
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /prod/ec2/instanceType 
+  
+  ParamEc2InstanceType:
+    Description: WebServer EC2 instance type
+    Type: String
+    Default: t3.small
+    # AllowedValues:
+    #   - t1.micro
+    #   - t2.nano
+    #   - t2.micro
+    #   - t2.small
+    
+    AllowedValues: [t2.nano, t2.micro, t2.small, t2.medium, t2.large, t2.xlarge, t2.2xlarge,
+      t3.nano, t3.micro, t3.small, t3.medium, t3.large, t3.xlarge, t3.2xlarge,
+      m4.large, m4.xlarge, m4.2xlarge, m4.4xlarge, m4.10xlarge,
+      m5.large, m5.xlarge, m5.2xlarge, m5.4xlarge,
+      c5.large, c5.xlarge, c5.2xlarge, c5.4xlarge, c5.9xlarge,
+      g3.8xlarge,
+      r5.large, r5.xlarge, r5.2xlarge, r5.4xlarge,
+      i3.xlarge, i3.2xlarge, i3.4xlarge, i3.8xlarge,
+      d2.xlarge, d2.2xlarge, d2.4xlarge, d2.8xlarge]
+    ConstraintDescription: must be a valid EC2 instance type.
+   
+  ParamEc2ImageIdSsmDev:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+  ParamEc2ImageIdSsmProd:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+  ParamEc2ImageIdLatest:
+    Type:  'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+
+  ParamIpAddressLocationSsh:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+  ParamKeyPairNameSsh:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+   
+  ParamSecurityGroupDescription:
+    Description: Security Group Description (Simple parameter)
+    Type: String
+  
+  ParamSecurityGroupIdMetaDataCloudFormationInterface:
+    Description: Security Group
+    Type: AWS::EC2::SecurityGroup::Id
+
+  ParamSecurityGroupIngressCIDR:
+    Description: The IP address range that can be used to communicate to the EC2 instances
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+   
+  ParamSecurityGroupPort:
+    Description: Simple Description of a Number Parameter, with MinValue and MaxValue
+    Type: Number
+    MinValue: 1150
+    MaxValue: 65535
+
+  ParamSubnetIpAddressBlocksDb:
+    Description: "Comma-delimited list of three CIDR blocks"
+    Type: CommaDelimitedList
+    Default: "10.0.48.0/24, 10.0.112.0/24, 10.0.176.0/24"
+  
+  ParamSubnetIdMetaDataCloudFormationInterface:
+    Description: Subnet ID
+    Type: AWS::EC2::Subnet::Id
+
+  ParamSubnetIDs: #not uesed yet
+    Description: Subnet IDs that is a List of Subnet Id
+    Type: "List<AWS::EC2::Subnet::Id>"
+
+  ParamVpcDb:
+    Description: VPC to operate in
+    Type: AWS::EC2::VPC::Id  
+# End-Section: Parameters
+
+# Section: MetaData
+Metadata: 
+  License: Apache-2.0
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Network Configuration"
+        Parameters:
+          - ParamSubnetIdMetaDataCloudFormationInterface
+          - ParamSecurityGroupIdMetaDataCloudFormationInterface
+      - Label:
+          default: "Amazon EC2 Configuration"
+        Parameters:
+          - ParamEc2InstanceType
+    ParameterLabels:
+      SubnetID:
+        default: "Which subnet should this be deployed to?"
+# End-Section: MetaData
+
+# Section: Condition
+Conditions:
+  ConditionalResourcesCreationForDev: !Equals [ !Ref ParamConditionalEnvironmentTypes, dev ]
+# End-Section: Condition
+
+
+# Section: Rules
+Rules:
+  RuleEc2InstanceTypeProd:
+    RuleCondition: !Equals 
+      - !Ref ParamConditionalEnvironmentTypes
+      - prod
+    Assertions:
+      - Assert:
+          !Equals [t2.small, !Ref ParamEc2InstanceType]
+        AssertDescription: 'For a production environment, the instance type must be t2.small'
+
+  RuleEc2InstanceTypeDev:
+    RuleCondition: !Equals 
+      - !Ref ParamConditionalEnvironmentTypes
+      - dev
+    Assertions:
+      # - Assert:
+          # Assert with Or
+      #     'Fn::Or':
+      #       - !Equals [!Ref ParamEc2InstanceType, t2.nano]
+      #       - !Equals [!Ref ParamEc2InstanceType, t2.micro]
+      
+      - Assert:
+        # Assert with Contains
+          'Fn::Contains':
+            - - t2.nano
+              - t2.micro
+            - !Ref ParamEc2InstanceType
+        AssertDescription: 'For a development environment, the instance type must be t2.nano or t2.micro'
+# End-Section: Rules
+
+# Section: Conditionals
+Conditionals:
+# End-Section: Conditionals
+
+# Section: Resources
+Resources:
+
+  ResoSubnet1Db:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref ParamVpcDb
+      # the select function allows us to select across a list
+      CidrBlock: !Select [0, !Ref ParamSubnetIpAddressBlocksDb]
+
+  ResoSubnet2Db:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref ParamVpcDb
+      # the select function allows us to select across a list
+      CidrBlock: !Select [1, !Ref ParamSubnetIpAddressBlocksDb]
+      
+  ResoSubnet3Db:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref ParamVpcDb
+      # the select function allows us to select across a list
+      CidrBlock: !Select [2, !Ref ParamSubnetIpAddressBlocksDb]
+  
+  ResoS3BucketDev:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref ParamS3BucketName
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+
+  ResoSecurityGroupDb:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Ref ParamSecurityGroupDescription
+      SecurityGroupIngress:
+        - CidrIp: !Ref ParamSecurityGroupIngressCIDR
+          FromPort: !Ref ParamSecurityGroupPort
+          ToPort: !Ref ParamSecurityGroupPort
+          IpProtocol: tcp
+      VpcId: !Ref ParamVpcDb
+
+  ResoSecurityGroupSsh22Temp:
+    # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+        # we have a lot of rules because it's a perfect security group
+        # finance team network
+      - CidrIp: 10.0.48.0/24
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+        # marketing team network
+      - CidrIp: 10.0.112.0/24
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+        # application team support network
+      - CidrIp: 10.0.176.0/24
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+
+  ResoSecurityGroupSsh22Http80:
+    # our second EC2 security group
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: allow connections from specified CIDR ranges
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 192.168.1.1/32
+
+  ResoSecurityGroupSsh22:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !Ref 'ParamIpAddressLocationSsh'
+
+  ResoElasticIpAddress:
+    Type: AWS::EC2::EIP
+
+  ResoElasticIpAddressTemp:
+   # an elastic IP for our instance
+  #  http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-eip.html
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref ResoEc2Instance
+
+  ResoElasticIpAssociateWithEc2Instance:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      InstanceId: !Ref 'ResoEc2Instance' # ResoEc2Instance
+      EIP: !Ref 'ResoElasticIpAddress'
+  
+  ResoEc2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      UserData: !Base64
+        Fn::Join:
+        - ''
+        - [IPAddress=, !Ref 'ResoElasticIpAddress']
+      InstanceType: !Ref 'ParamEc2InstanceType'
+      SecurityGroups: [!Ref 'ResoSecurityGroupSsh22']
+      KeyName: !Ref 'ParamKeyPairNameSsh'
+      ImageId: !Ref 'ParamEc2ImageIdLatest'
+
+  ResoEc2InstanceDb:
+    Type: AWS::EC2::Instance
+    Properties:
+      #we reference the InstanceType parameter
+      InstanceType: !Ref ParamEc2InstanceType
+      KeyName: !Ref ParamKeyPairNameSsh
+      ImageId: !Ref ParamEc2ImageIdLatest #ami-0742b4e673072066f
+      # here we reference an internal CloudFormation resource
+      SubnetId: !Ref ResoSubnet1Db
+
+  ResoEc2InstanceDev:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref ParamEc2InstanceTypeSsmDev
+      ImageId: !Ref ParamEc2ImageIdSsmDev
+    # the EC2 instance will be created after the S3 bucket
+    DependsOn: ResoS3BucketDev
+  
+  ResoEc2InstanceMappedTypeAndImageId:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !FindInMap [MappEnvironmentToInstanceType, !Ref 'ParamEnvironmentName', instanceType]
+      # Note we use the pseudo parameter AWS::Region
+      ImageId: !FindInMap [MappAWSRegionArch2AMI, !Ref 'AWS::Region', HVM64]
+
+  ResoEc2InstanceMetaDataCloudFormationInterface:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: us-east-1a
+      ImageId: ami-0742b4e673072066f
+      InstanceType: !Ref ParamEc2InstanceType
+      SecurityGroups:
+        - !Ref ParamSecurityGroupIdMetaDataCloudFormationInterface
+      SubnetId: !Ref ParamSubnetIdMetaDataCloudFormationInterface
+
+  ResoEc2InstanceTemp:
+  # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-instance.html
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: us-east-1a
+      ImageId: !Ref 'ParamEc2ImageIdLatest' #ami-0742b4e673072066f
+      InstanceType: !Ref ParamEc2InstanceType #t2.micro
+      SecurityGroups:
+        - !Ref ResoSecurityGroupSsh
+        - !Ref ResoSecurityGroupSsh22Http80
+
+  ResoEbsVolumeConditionalDev:
+    Type: AWS::EC2::Volume
+    Condition: ConditionalResourcesCreationForDev
+    Properties:
+      Size: 1
+      AvailabilityZone:
+        !GetAtt ResoEc2Instance.AvailabilityZone
+
+  EbsVolumeMountPointConditionalDev:
+    Type: AWS::EC2::VolumeAttachment
+    Condition: ConditionalResourcesCreationForDev
+    Properties:
+      InstanceId:
+        !Ref ResoEc2Instance
+      VolumeId:
+        !Ref ResoEbsVolumeConditionalDev
+      Device: /dev/sdh
+# End-Section: Resources
+
+# Section: Outputs
+Outputs:
+  StackOutputResoEc2InstanceId:
+    Description: InstanceId of the newly created EC2 instance
+    Value: !Ref 'ResoEc2Instance'
+    Export:
+      Name: ExportedStackResoEc2Instance
+
+  StackOutputResoEc2InstanceIPAddress:
+    Description: IP address of the newly created EC2 instance
+    Value: !Ref 'ResoElasticIpAddress'
+    Export:
+      Name: ExportedStackResoEc2InstanceIPAddress
+
+  StackOutputResoSecurityGroupSsh:
+    # in other Stack=> we reference the output using the Fn::ImportValue function (Cross Stack Refrence) => SecurityGroups: - !ImportValue ExportedSecurityGroupSsh
+    Description: The SSH Security Group for our Company
+    Value: !Ref 'ResoSecurityGroupSsh22'
+    Export:
+      Name: ExportedStackResoSecurityGroupSsh
+
+  StackOutputResoEbsVolumeConditionalDev:
+    Condition: ConditionalResourcesCreationForDev
+    Value: !Ref ResoEbsVolumeConditionalDev
+    Export:
+      Name: ExportedStackResoEbsVolumeConditionalDev
+# End-Section: Outputs

@@ -1,0 +1,17 @@
+# CloudFormation Building Blocks
+
+# Template's components 
+# TemplateFormatVersion: which allows you to identify the capabilities of the template (by default 2010-09-09)
+# Description: which gives you comments about the template.
+# Transform: to specify one or more Macros that are going to be used to process templates.
+# Metadata: Metadata does have only impacts onto CloudFormation designer. So we defined some metadata with some CloudFormation::Interface
+# Resources: And this is what we've seen so far, which is how and this is the only administrator section actually within CloudFormation templates which is where you define your logical resources within it.
+# Parameters: to have dynamic inputs for your templates.
+# Mappings: to have static variables for your template.
+# Outputs: to have references to what has been created.
+# Conditionals: to list which is a list of conditions to perform resource creation 
+# Rules: to validate a parameter during stack creation/update.
+
+# Template helpers
+# References: to understand how to link these logical resources together.
+# Functions: as well to transform some inputs within our CloudFormation templates.
