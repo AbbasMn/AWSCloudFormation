@@ -1,0 +1,272 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: AWS CloudFormation Sample Template for CFN Init
+
+Parameters:
+
+  ParamKeyPairNameSsh:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+  ParamIpAddressLocationSsh:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+  ParamIpAddressLocationHttp:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+  ParamS3BucketName:
+    Description: Name of an existing bucket to download files from
+    Type: String
+
+  ParamEc2ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+Resources:
+
+  ResoSecurityGroupSsh22Http80:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP access via port 80 and SSH access via port 22
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: !Ref ParamIpAddressLocationHttp
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !Ref ParamIpAddressLocationSsh
+
+  ResoEc2WebServerHost:
+    Type: AWS::EC2::Instance
+    
+    Metadata:
+      Comment: Install a simple PHP application
+
+    # Specify authentication credentilas for Files or Sources in AWS::CloudFormation::Init
+      # Basic authentication: used when the source is a URL
+      # S3 authentication: used when the source is an S3 bucket
+    # Prefer using Roles instead of access keys for EC@ instances
+      AWS::CloudFormation::Authentication:
+        # Define S3 access credentials
+        S3AccessCreds:
+          type: S3
+          buckets:
+            - !Sub ${ParamS3BucketName}
+          roleName: !Ref ResoEc2InstanceRole
+    
+      
+      # cfn-init Helper script => A CloudFormation Python script => retrieve and interpert the resource Metadata, installing packages, creating files and starting services
+      # cfn-signal Helper script => A CloudFormation Python script => simple wrapper to signal with a CreationPolicy or WaitCondition, enabling you to synchronize other resources in the stack with the application being ready
+      # cfn-get-metadata Helper script => A CloudFormation Python script => wrapper script making it easy to retrieve either all metadatadefined for a resource or path to a specific key or subtree of the resource metadata
+      # cfn-hup Helper script => A CloudFormation Python script => A daemon to check for updates to the metadata and execute ustom hooks when the changes are detected
+      # Usual flow: cfn-init, then cfn-signal, then optionally cfn-hup
+
+      # cfn-init 
+      AWS::CloudFormation::Init:
+
+        # config contains the following and is executed in that order
+        config:
+        # cfn-init => config => Packages => dowload and install pre-packaged apps and components on Linux/windows (ex. MySQL, PHP, ...)
+          packages:
+            yum:
+              httpd: []
+              php: []
+
+        # cfn-init => config => Groups => define user groupss
+          groups:
+            apache: {}
+            groupOne: {}
+            groupTwo:
+              gid: "45"
+
+        # cfn-init => config => Users => define users, and which group they belong to
+          users:
+            "apache":
+              groups:
+                - "apache"
+
+            myUser:
+              groups:          
+                - "groupOne"
+                - "groupTwo" 
+              uid: "50"  
+              homeDir: "/temp"       
+
+        # cfn-init => config => Sources => download files and archives (zip, tar, tar+gzip,tar+bz2,) and place (unpack) them on the EC2 instance
+        # when you have a set of standardzied scripts for your EC2 that you store in S3, or if you want download a whole GitHub project directly 
+          sources:
+            "/home/ec2-user/aws-cli": "https://github.com/aws/aws-cli/tarball/master"
+
+        # cfn-init => config => Files => create files on the EC2 instance, using inline or can be pulled from a URL
+        # Files => is main advantage to use in CloudFormation => 
+        # When you write CloudFormation templates and need to write some initiation for EC2 Instances files. you can write inline files directly within CloudFormation templates.
+          files:
+            "/tmp/cwlogs/apacheaccess.conf":
+              content: !Sub |
+                [general]
+                state_file= /var/awslogs/agent-state
+                [/var/log/httpd/access_log]
+                file = /var/log/httpd/access_log
+                log_group_name = ${AWS::StackName}
+                log_stream_name = {instance_id}/apache.log
+                datetime_format = %d/%b/%Y:%H:%M:%S
+              mode: '000400'
+              owner: apache
+              group: apache
+            
+            "/var/www/html/index.php":
+              content: !Sub |
+                <?php
+                echo '<h1>AWS CloudFormation sample PHP application for ${AWS::StackName}</h1>';
+                ?>
+              mode: '000644'
+              owner: apache
+              group: apache
+            
+            "/etc/cfn/cfn-hup.conf":
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+              mode: "000400"
+              owner: "root"
+              group: "root"
+            
+            "/etc/cfn/hooks.d/cfn-auto-reloader.conf":
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.ResoEc2WebServerHost.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ResoEc2WebServerHost --region ${AWS::Region}
+              mode: "000400"
+              owner: "root"
+              group: "root"
+            
+            # Fetch a webpage from a private S3 bucket
+            "/var/www/html/webpage.html":
+            # source => URL to load file from
+              source: !Sub "https://${ParamS3BucketName}.s3.${AWS::Region}.amazonaws.com/webpage.html"
+              mode: '000644'
+              owner: apache
+              group: apache
+            # authentication => name of authentication method to use (used with AWS::CloudFormation::Authentication) ex. files protrcted by user/pass
+              authentication: S3AccessCreds
+          
+        # cfn-init => config => Commands => run a series of commands => one at a time in the alphabetical order        
+          commands:
+            test:
+              command: "echo \"$MAGIC\" > test.txt"
+              env:
+                MAGIC: "I come from the environment!"
+              cwd: "~"
+
+        # cfn-init => config => Services => launch a list of services (sysvint) at EC2 instance launch      
+          services:
+            sysvinit:
+              httpd:
+                enabled: 'true'
+                ensureRunning: 'true'
+              postfix:
+                enabled: 'false'
+                ensureRunning: 'false'
+              
+              # cfn-hup => tell the EC2 instance to look for Metadata changes every 15 minutes and apply the Metadata configuration again 
+              cfn-hup:
+                enable: 'true'
+                ensureRunning: 'true'
+                # cfn-hup configuration => in 2 files: cfn-hup.conf & cfn-auto-reloader.conf
+                files:
+                  - "/etc/cfn/cfn-hup.conf"
+                  - "/etc/cfn/hooks.d/cfn-auto-reloader.conf"
+    
+    # cfn-signal => Signal with CreationPolicy
+    # CreationPolicy works for EC2 and ASG, for example, and we'll defined a Count and you can define a Count greater than one if you need more than one signal.
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+        coutn: 2
+
+
+  WaitCondition:
+
+
+    Properties:
+      ImageId: !Ref ParamEc2ImageId
+      KeyName: !Ref ParamKeyPairNameSsh
+      InstanceType: t2.micro
+      IamInstanceProfile: !Ref ResoEc2InstanceProfile # Reference Instance Profile
+      SecurityGroups:
+      - !Ref ResoSecurityGroupSsh22Http80
+      
+      # CloudFormation User Data => for first EC2 boot configurations
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -xe
+            
+            # Get the latest CloudFormation helper scripts
+            yum install -y aws-cfn-bootstrap
+            
+            # Start cfn-init
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource ResoEc2WebServerHost --region ${AWS::Region}
+            
+            # cfn-init completed so signal success or not
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ResoEc2WebServerHost --region ${AWS::Region}
+          
+  ResoEc2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Principal:
+              Service: ec2.amazonaws.com
+            Effect: Allow
+            Sid: ''
+      Policies:
+        - PolicyName: AuthenticatedS3GetObjects
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - 's3:GetObject'
+                Resource: !Sub 'arn:aws:s3:::${ParamS3BucketName}/*'
+                Effect: Allow
+
+  ResoEc2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref ResoEc2InstanceRole
+
+Outputs:
+
+  StackOutputResoEc2InstanceId:
+    Description: The instance ID of the web server
+    Value:
+      !Ref ResoEc2WebServerHost
+
+  StackOutputResoEc2WebServerHostWebsiteURL:
+    Value:
+      !Sub 'http://${ResoEc2WebServerHost.PublicDnsName}'
+    Description: URL for newly created LAMP stack
+
+  StackOutputResoEc2WebServerHostPublicIP:
+    Description: Public IP address of the web server
+    Value:
+      !GetAtt ResoEc2WebServerHost.PublicIp
