@@ -1,0 +1,38 @@
+# Step1: Upload the NestedStackSecurityGroupSsh22.yaml to a S3 bucket. Then copy the Object URL from properties.
+# Step2: Create a new CloudFormation stack. In Parameters section => past NestedStackSecurityGroupSsh22.yaml Object URL 
+#        as ParamNestedStackSecurityGroubSsh22TemplateURL (as Nested Stack)
+
+Parameters:
+  ParamVPCId:
+    Description: VPC to create the security group and EC2 instance into
+    Type: AWS::EC2::VPC::Id
+
+  ParamNestedStackSecurityGroubSsh22TemplateURL:
+    Description: URL of the nested stack template
+    Type: String
+
+  ParamImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+Resources:
+  NestedStackResoSecurityGroupSsh22:
+  # kind of AWS::CloudFormation::Stack type means using a nested stack. 
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Ref ParamNestedStackSecurityGroubSsh22TemplateURL
+      Parameters:
+      # pseudo parameter => AWS::StackName
+        ApplicationName: !Ref AWS::StackName
+        VPCId: !Ref ParamVPCId
+      TimeoutInMinutes: 5
+
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      # pseudo parameter => AWS::Region
+      ImageId: !Ref ParamImageId
+      SecurityGroupIds:
+        - !GetAtt NestedStackResoSecurityGroupSsh22.Outputs.SSHGroupId
