@@ -478,7 +478,7 @@ Outputs:
     Export:
       Name: ExportedStackResoEc2InstanceIPAddress
 
-  StackOutputResoSecurityGroupSsh:
+  StackOutputResoSecurityGroupSsh22:
     # in other Stack=> we reference the output using the Fn::ImportValue function (Cross Stack Refrence) => SecurityGroups: - !ImportValue ExportedSecurityGroupSsh
     Description: The SSH Security Group for our Company
     Value: !Ref 'ResoSecurityGroupSsh22'
