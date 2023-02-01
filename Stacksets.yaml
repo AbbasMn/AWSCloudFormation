@@ -1,0 +1,24 @@
+# we're going to deploy StackSets across multiple regions to enable AWS Config within each region. 
+# And the idea is that you are going to be able to track the resource configuration over time of all
+# your resources within all regions within the same account
+
+# Step 1: create IAM roles (StackSetAdministrationRole.yaml) So we're giving the administrator the right to basically assume roles 
+#         in the target account from which you will be able to deploy StackSets.
+# Create a cloudFormation stack => Upload this StackSetAdministrationRole.yaml
+
+# Step 2: add the trust relationships (Execution Role): StackSetExecutionRole.yaml
+# Note: So this CloudFormation templates must be applied in all the target accounts that you want to use the StackSet feature in.
+# This is an initial setup that you cannot avoid unless you are using AWS organizations.
+
+# Step 3: Creat a new stack and apply/update StackSetExecutionRole.yaml template 
+# It connects and StackSetExecutionRole Now aks for the ParamAdministratorAccountId
+# Copy-Past Account ID from AWS Console => Top Right Menu => My account
+
+# Step 4:  StackSets => Create StackSets => we will use this StackSetsEnableAwsConfigAcrossAccounts.yaml template and deploy it now as part of our StackSet.
+#   - Permissions => IAM admin role ARN => look for: AWSCloudFormationStackSetAdministrationRole
+#   - Permissions => IAM execution role name => look for: AWSCloudFormationStackSetExecutionRole
+#   - Account numbers =>  Copy-Past Account ID from AWS Console => Top Right Menu => My account
+#   - Specify regions => add 2 regions or more
+#   - Deployment options => Maximum concurrent accounts:1 & Region Concurrency:Parallel
+
+# Step 5: after StackSets created => go to each region and see the created StackSets overthere
