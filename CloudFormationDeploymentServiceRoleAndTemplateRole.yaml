@@ -1,0 +1,12 @@
+#  you can create an IAM role that will do all the operations within CloudFormation on your behalf. The idea is that by default if you don't 
+#  specify an IAM role for the CloudFormation operations, then CloudFormation will use a temporary session that it generates
+# from your user credentials.
+# So your user has a template and whatever your user has as permission will be applied when you create the template. 
+# So if your user can create an EC2 instance then you can create an EC2 instance through CloudFormation, right? But sometimes 
+# your users do not have access to create the target resources. So instead you can just have a limited set of permissions on your user, 
+# such as CloudFormation:* and an IAM:PassRole, and then use a service role, for example, that has the S3 create bucket permission to allow 
+# to create an S3 bucket directly from CloudFormation.
+
+# by using the IAM:PassRole we can use a service role and confirmation using that service role can create the use for buckets.
+
+# Note: open an incognito window so I can have both, access to both consoles. So the admin console right here as well as the console of the user as well.

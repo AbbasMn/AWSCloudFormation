@@ -1,0 +1,8 @@
+# Note: as you can see, the rollback on failure can be enabled or disabled. So this won't impact this stack itself 
+# because right now we only create an S3 bucket, but in case you had for example, an EC2 instance that you're 
+# bootstrapping thanks to cfn-init and you want to be able to debug it in case the stack creation does not happen, 
+# then you would disable the rollback on failure so that the EC2 instance does not get terminated and 
+# then you can (indistinct) into it and have a look at what's happening.
+
+# Note: If Stack creation failures, as you can see for this stack the only thing you can do is delete it, 
+# you cannot update it, you cannot do anything regarding drift or regarding change sets and so on, everything is not available.

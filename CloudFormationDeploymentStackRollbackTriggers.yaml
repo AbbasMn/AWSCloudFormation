@@ -1,0 +1,13 @@
+# So it is possible for you to trigger a rollback for whatever reason. And whenever you create a stack or you update a stack, 
+# you can monitor a CloudWatch Alarm. And if the CloudWatch Alarm goes into an alarm state, then it is going to trigger a rollback.
+
+# And also, you can define a monitoring period after the CloudFormation (inaudible) has been deployed. By default is zero minutes, 
+# but you can have it all the way up to three hours, to monitor, for example, a specific metric and roll back automatically, 
+# even if the CloudFormation stack was successfully applied, in case that CloudWatch Alarm metric is triggered.
+
+# And this is a template which allows us to provision a DynamoDB table. We have two arguments; the table name and the RCU. And so, 
+# the RCU represents a number, which is how many "read capacity units" to provide to the DynamoDB table, and this is what was 
+# specified right here.
+
+# So we're going to, firstly apply these templates and give an RCU of five, and then we're going to create a CloudWatch alarm 
+# that will monitor how many RCU they are in my accounts. And then we'll update the templates and go over the limits so that we can have rollback.

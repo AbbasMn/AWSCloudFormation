@@ -1,0 +1,1 @@
+# Note:you should definitely Enable Stack Termination Protection on your production stacks in CloudFormation.

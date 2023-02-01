@@ -1,0 +1,6 @@
+# when you update a stack, you need to know what changes will happen before it applying them for grater cnfidence
+#  ChangeSets won't say if the update will be successful 
+#  for nested Stacks, you see the changes across all stacks
+
+
+# Upload a StackTemplate => Create change set => Change sets for nested stacks: Enabled
