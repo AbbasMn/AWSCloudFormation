@@ -10,3 +10,44 @@
 # by using the IAM:PassRole we can use a service role and confirmation using that service role can create the use for buckets.
 
 # Note: open an incognito window so I can have both, access to both consoles. So the admin console right here as well as the console of the user as well.
+
+
+#  Create an User Policy => go to IAM => Add User => check the AWS Management console access => custom password => Permissions 
+#  => Attach existing policies directly => create pilicy
+# {
+#     "Version": "2012-10-17",
+#     "Statement": [
+#         {
+#             "Effect": "Allow",
+#             "Action": [
+#                 "cloudformation:*",
+#                 "s3:*",
+#                 "iam:PassRole"
+#                 "ssm:GetParameters"
+#             ],
+#             "Resource": "*"
+#         }
+#     ]
+# }
+
+# Create a Service Role => go to IAM => Roles => Create Role => AWS Service => Cloudformation => Next: Permissions 
+# => search for ec2  => select AmazonEC2FullAccess
+# => search for ssm => select AmazonSSMReadOnlyAccess
+# => Next:Rle name: CloudformationRole => Create role
+
+# now you can create the stack from following Cloudformation Template without access denied error!
+# => Create stack => Permissions => IAM role: select IAM role ARN => copy trhe ARN of "CloudformationRole" and past it => see the trust relationship tab 
+# => stack will be created regarding "iam:PassRole" in user policy 
+
+#  Cloudformation Template
+Parameters:
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+Resources:
+  MyEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: !Ref ImageId
