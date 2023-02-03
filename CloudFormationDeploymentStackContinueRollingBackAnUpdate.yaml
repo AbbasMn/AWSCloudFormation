@@ -1,0 +1,58 @@
+# In CloudFormation template If we refer the created specefic LaunchConfiguration (LC) for AutoScalingGroup with InstanceType: t2.micro (# 5)
+#  After creating the stack go to check and see the LaunchConfiguration (LC) in EC2 => launch configuration
+
+# Now we go to trigger an update and a failure on the update which trigger a rollback: We'll change the LaunchConfiguration (LC)
+# for AutoScalingGroup with InstanceType: t2.nano (# 6) so this will trigger a new LaunchConfiguration (LC) in CloudFormation,
+#  Also we'll add a WaitCondition (# 7) to wait for cfn-signal command of creating our ASG => this wait condition will never receive a signal
+#  because nothing in new CloudFormation template will send a signal to it.
+#  Therefore because this WaitCondition has an error the stack will go into a ROLLBACK state
+# Then if we delete the old LaunchConfiguration (LC) have been created by old CloudFormation template (InstanceType: t2.micro # 5)
+#  eerything is ready to get trigger an error 
+
+# => Now in CloudFormation we replace the current (old) with new CloudFormation template
+# => It will go into a rollback, but the rollback will failed because previous LaunchConfiguration (LC) doesn't exsists anymore. 
+# => look at change set => update stack
+
+# this wait condition will never receive a signal because nothing in new CloudFormation template will send a signal to it => trigger a rollback
+#  so when ASG is going to rollback
+# => ASG status: UPDATE_FAILED => because previous LaunchConfiguration (LC) doesn't exsists anymore => ASG status: UPDATE_ROLLBACK_FAILED
+
+# => in Stack actions => we canclick on Continue update rollback => we can 1- skip the ASG (select the check box)
+# => or we can just 2- click on Continue update rollback and try again => so we should recreate the deleted old LaunchConfiguration (LC) 
+# with (the exact name showed in cloudformation status error) manually to resolve the problem! => click on Continue update rollback and try again!
+
+Parameters:
+# 1
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+Resources:
+  ASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AvailabilityZones: 
+        - !Select 
+          - 0
+          - Fn::GetAZs: !Ref 'AWS::Region' # 2
+      DesiredCapacity: "1"
+      LaunchConfigurationName: !Ref LC # 3
+      MaxSize: "1"
+      MinSize: "1"
+  LC:
+    Type: AWS::AutoScaling::LaunchConfiguration # 4
+    Properties: 
+      ImageId: !Ref ImageId
+      # InstanceType: t2.micro # 5
+      InstanceType: t2.nano # 6
+
+  # << this WaitCondition is append in new CloudFormation template also in LC recource we changed the InstanceType => nstanceType: t2.nano # 6 >>
+  WaitCondition: # 7
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn: ASG
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT1M
+
+      
