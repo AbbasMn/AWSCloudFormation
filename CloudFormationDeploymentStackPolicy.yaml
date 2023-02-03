@@ -1,0 +1,63 @@
+# Stack Policy Example
+# {
+#     "Statement": [
+#         {
+#             "Effect": "Allow",
+#             "Action": "Update:*",
+#             "Principal": "*",
+#             "Resource": "*"
+#         },
+#         {
+#             "Effect": "Deny",
+#             "Action": ["Update:Replace", "Update:Delete"],
+#             "Principal": "*",
+#             "Resource": "LogicalResourceId/MyDDBTable",
+#             "Condition": {
+#                 "StringEquals": {
+#                     "ResourceType": ["AWS::DynamoDB::Table"]
+#                 }
+#             }
+#         }
+#     ]
+# }
+
+# CloudFormation Template => whenever create this stack => status: UPDATE_FAILEd 
+# => Action denied by stack plolicy ...
+Parameters:
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+Resources:
+  MyInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref ImageId
+      # Changed
+      # InstanceType: t2.micro
+      InstanceType: t2.nano
+      
+  MyDDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - 
+          AttributeName: "UserID"
+          AttributeType: "S"
+        - 
+        # Added in new CloudFormation Template
+          AttributeName: "Name"
+          AttributeType: "S"
+        # Added
+      KeySchema:
+        -
+          AttributeName: "UserID"
+          KeyType: "HASH"
+        -
+        # Added in new CloudFormation Template
+          AttributeName: "Name"
+          KeyType: "RANGE"
+        # Added
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
