@@ -1,3 +1,16 @@
 # https://eu-central-1.console.aws.amazon.com/cloudformation/home?region=eu-central-1#/stacks/create/review?templateURL=https://s3.eu-central-1.amazonaws.com/cloudformation-templates-eu-central-1/WordPress_Single_Instance.template&stackName=MyWPBlog&param_DBName=mywpblog&param_InstanceType=t2.medium&param_KeyName=DemoKeyPair
 
+# COPY-PAST THIS TOP LINK TO A NEW CHROME TAB => 
 
+ https://REGION.console.aws.amazon.com/cloudformation/home?region=REGION#/stacks/create/review?templateURL=TEMPLATE-LOCATION&stackName=STACKNAME&param_PARAM1=VALUE1&param_PARAM2=VALUE2&param_PARAM3=VALUE3
+
+# FOLLOWING SECTIONS ARE PRE-FILLED
+
+REGION= eu-central-1
+TEMPLATE-LOCATION= https://s3.eu-central-1.amazonaws.com/cloudformation-templates-eu-central-1/WordPress_Single_Instance.template
+STACKNAME= MyWPBlog
+
+# YOU WOULD ENTER FOLLOWING ENTRY AS PARAMETERS
+PARAM1=VALUE1=> DBName=mywpblog
+PARAM2=VALUE2=> InstanceType=t2.medium
+PARAM3=VALUE3=> KeyName=DemoKeyPair
