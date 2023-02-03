@@ -11,3 +11,36 @@
 
 # So we're going to, firstly apply these templates and give an RCU of five, and then we're going to create a CloudWatch alarm 
 # that will monitor how many RCU they are in my accounts. And then we'll update the templates and go over the limits so that we can have rollback.
+
+Parameters:
+  TableName:
+    Type: String
+    Description: The name of our DynamoDB table
+    # RCU (read capacity units)
+  RCU:
+    Type: Number
+    Default: 5
+    Description: How many RCU to provide to the table
+    
+Resources:
+  MyDDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref TableName
+      AttributeDefinitions:
+        - 
+          AttributeName: "Album"
+          AttributeType: "S"
+        - 
+          AttributeName: "Artist"
+          AttributeType: "S"
+      KeySchema:
+        -
+          AttributeName: "Album"
+          KeyType: "HASH"
+        -
+          AttributeName: "Artist"
+          KeyType: "RANGE"
+      ProvisionedThroughput:
+        ReadCapacityUnits: !Ref RCU
+        WriteCapacityUnits: 5  
