@@ -1,3 +1,29 @@
+# So as you can see, there's two different ways you can use codepipeline with cloud formation. 
+# 1- TestStage in following pipeline: is to just directly create a stack 
+
+# 2- ProdStage in following pipeline
+#    A- create a changesets and 
+#    B- then approve this changesets and then 
+#    C- execute the changeset 
+# which is even safer because here we can really make sure that the changes that are about to be applied to production do make sense. 
+# So we have two manual approvals in this pipeline. 
+
+#  In AWS console Go to Code Pipeline for see the pipeline stages
+
+# Pipeline
+#    TestStage:
+#         => CreateStack 
+#         => ApproveTestStack
+#         => DeleteTestStack 
+
+#    ProdStage:
+#         => CreateChangeSet 
+#         => ApproveChangeSet 
+#         => ExecuteChangeSet
+
+
+
+
 AWSTemplateFormatVersion: "2010-09-09"
 
 Description: >
@@ -24,7 +50,7 @@ Parameters:
     Description: The file name of the source artifact, such as myfolder/myartifact.zip
     Type: String
 
-  ParamTemplateFileName:
+  ParamTemplateFileName: # within CodePipeLine-wordpress-single-instance.zip
     Default: wordpress-single-instance.yaml
     Description: The file name of the WordPress template
     Type: String
@@ -34,8 +60,8 @@ Parameters:
     Description: A name for the test WordPress stack
     Type: String
 
-  ParamTestStackConfig:
-    Default: CodePipeLine-test-stack-configuration.json
+  ParamTestStackConfigFile: # within CodePipeLine-wordpress-single-instance.zip
+    Default: CodePipeLine-test-stack-configura tion.json
     Description: The configuration file name for the test WordPress stack
     Type: String
 
@@ -44,7 +70,7 @@ Parameters:
     Description: A name for the production WordPress stack
     Type: String
 
-  ParamProdStackConfig:
+  ParamProdStackConfigFile: # within CodePipeLine-wordpress-single-instance.zip
     Default: CodePipeLine-prod-stack-configuration.json
     Description: The configuration file name for the production WordPress stack
     Type: String
@@ -62,24 +88,24 @@ Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
-          default: "CodePipeline Settings"
+          default: "CodePipeline Settings" # Group Parameters together
         Parameters:
           - ParamPipelineName
           - ParamBranchOfFilesOrArtifactsInS3
           - ParamFilesOrArtifactsNameForDeploy
           - ParamEmail
       - Label:
-          default: "Test Stack Settings"
+          default: "Test Stack Settings" # Group Parameters together
         Parameters:
           - ParamTestStackName
           - ParamTemplateFileName
-          - ParamTestStackConfig
+          - ParamTestStackConfigFile
       - Label:
-          default: "Production Stack Settings"
+          default: "Production Stack Settings" # Group Parameters together
         Parameters:
           - ParamChangeSetName
           - ParamProdStackName
-          - ParamProdStackConfig
+          - ParamProdStackConfigFile
 
 Resources:
   ResoBranchLocationType:
@@ -113,6 +139,9 @@ Resources:
               ActionTypeId:
                 Category: Source
                 Owner: AWS
+                #  Step1: means that the source code is going to be retrieved from Amazon S3, but it can be also from code commit or it could be from
+                #  Gitub if you want it to. Then once the tempered source is retrieved then it is passed onto the test stage. 
+                # And then a cloud formation stack will be created by code pipeline.
                 Provider: S3
                 Version: '1'
               Configuration:
@@ -143,14 +172,18 @@ Resources:
 
                 # Address the template file and it's config
 
-                # Lookup with replacing the CfnTemplateFilesOrArtifacts with ParamTestStackConfig= CodePipeLine-test-stack-configuration.json (file/artifact)
-                TemplateConfiguration: !Sub "CfnTemplateFilesOrArtifacts::${ParamTestStackConfig}"
+                # Lookup with replacing the CfnTemplateFilesOrArtifacts with ParamTestStackConfigFile= CodePipeLine-test-stack-configuration.json (file/artifact)
+                TemplateConfiguration: !Sub "CfnTemplateFilesOrArtifacts::${ParamTestStackConfigFile}"
 
                 # Lookup with replacing the CfnTemplateFilesOrArtifacts with ParamTemplateFileName= wordpress-single-instance.yaml (file/artifact)
                 TemplatePath: !Sub "CfnTemplateFilesOrArtifacts::${ParamTemplateFileName}"
               RunOrder: 1
 
-            # Getting Approval for creating changeset against Production and delete TestStack (throuth sending an email)
+            # Step2: Getting Approval for creating changeset against Production and delete TestStack (throuth sending an email)
+            # once this is deployed by the stack itself we're going to approve it. So by approving it, that means we're 
+            # going to check whether or not WordPress is successfully working.
+            # And if it is, then we'll be approving it. And then once we approve it is going to be deleted because we don't 
+            # need the teststack anymore.
             - Name: ApproveTestStack
               ActionTypeId:
                 Category: Approval
@@ -177,6 +210,7 @@ Resources:
 
         # Production staging
         - Name: ProdStage
+        # Step3: It will go into the prod stage where again a changeset will be created and we can approve this general set.
           Actions:
           # Creating changeset in Production
             - Name: CreateChangeSet
@@ -195,8 +229,8 @@ Resources:
 
                 # Address the template file and it's config
 
-                # Lookup with replacing the CfnTemplateFilesOrArtifacts with ParamTestStackConfig= CodePipeLine-prod-stack-configuration.json (file/artifact)                                
-                TemplateConfiguration: !Sub "CfnTemplateFilesOrArtifacts::${ParamProdStackConfig}"
+                # Lookup with replacing the CfnTemplateFilesOrArtifacts with ParamProdStackConfigFile= CodePipeLine-prod-stack-configuration.json (file/artifact)                                
+                TemplateConfiguration: !Sub "CfnTemplateFilesOrArtifacts::${ParamProdStackConfigFile}"
 
                 # Lookup with replacing the CfnTemplateFilesOrArtifacts with ParamTemplateFileName= wordpress-single-instance.yaml (file/artifact)             
                 TemplatePath: !Sub "CfnTemplateFilesOrArtifacts::${ParamTemplateFileName}"
