@@ -1,0 +1,282 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  AWS CloudFormation Sample Template Continuous Delivery: This template
+  builds an AWS CodePipeline pipeline that implements a continuous delivery release
+  process for AWS CloudFormation stacks. 
+  1- Submit a CloudFormation source artifact to an Amazon S3 location before building the pipeline. 
+  2- The pipeline uses the artifact to automatically create stacks and change sets.
+
+  **WARNING** This template creates an Amazon EC2 instance. You will be billed
+  for the AWS resources used when you create a stack using this template.
+
+Parameters:
+  ParamPipelineName:
+    Description: A name for pipeline
+    Type: String
+
+  ParamBranchOfFilesOrArtifactsInS3:
+    Description: The name of the S3 bucket that contains the source artifact, which must be in the same region as this stack
+    Type: String
+
+  ParamFilesOrArtifactsNameForDeploy:
+    Default: CodePipeLine-wordpress-single-instance.zip
+    Description: The file name of the source artifact, such as myfolder/myartifact.zip
+    Type: String
+
+  ParamTemplateFileName:
+    Default: wordpress-single-instance.yaml
+    Description: The file name of the WordPress template
+    Type: String
+
+  ParamTestStackName:
+    Default: Test-MyWordPressSite
+    Description: A name for the test WordPress stack
+    Type: String
+
+  ParamTestStackConfig:
+    Default: CodePipeLine-test-stack-configuration.json
+    Description: The configuration file name for the test WordPress stack
+    Type: String
+
+  ParamProdStackName:
+    Default: Prod-MyWordPressSite
+    Description: A name for the production WordPress stack
+    Type: String
+
+  ParamProdStackConfig:
+    Default: CodePipeLine-prod-stack-configuration.json
+    Description: The configuration file name for the production WordPress stack
+    Type: String
+
+  ParamChangeSetName:
+    Default: UpdatePreview-MyWordPressSite
+    Description: A name for the production WordPress stack change set
+    Type: String
+
+  ParamEmail:
+    Description: The email address where CodePipeline sends pipeline notifications
+    Type: String
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "CodePipeline Settings"
+        Parameters:
+          - ParamPipelineName
+          - ParamBranchOfFilesOrArtifactsInS3
+          - ParamFilesOrArtifactsNameForDeploy
+          - ParamEmail
+      - Label:
+          default: "Test Stack Settings"
+        Parameters:
+          - ParamTestStackName
+          - ParamTemplateFileName
+          - ParamTestStackConfig
+      - Label:
+          default: "Production Stack Settings"
+        Parameters:
+          - ParamChangeSetName
+          - ParamProdStackName
+          - ParamProdStackConfig
+
+Resources:
+  ResoBranchLocationType:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+
+  ResoCodePipelineSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !Ref ParamEmail
+          Protocol: email
+
+  ResoPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStore:
+        Location: !Ref 'ResoBranchLocationType'
+        Type: S3
+      DisableInboundStageTransitions: []
+      Name: !Ref 'ParamPipelineName'
+      RoleArn: !GetAtt [ResoRolePipeline, Arn]
+      Stages:
+        # Define a S3 bucket as S3 bucket that contains the source artifacts (files), which must be in the same region as this stack
+        #  ParamFilesOrArtifactsNameForDeploy= CodePipeLine-wordpress-single-instance.zip
+        - Name: BranchOfFilesOrArtifactsInS3
+          Actions:
+            - Name: BranchOfFilesOrArtifacts
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              Configuration:
+                S3Bucket: !Ref 'ParamBranchOfFilesOrArtifactsInS3'
+                S3ObjectKey: !Ref 'ParamFilesOrArtifactsNameForDeploy'
+              OutputArtifacts:
+                - Name: BranchOfFilesOrArtifacts
+              RunOrder: 1
+
+        # Test staging
+        - Name: TestStage
+          Actions:
+            # Creating TestStack through CloudFormation from S3 BranchOfFilesOrArtifacts:           
+            - Name: CreateStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              InputArtifacts:
+                - Name: BranchOfFilesOrArtifacts
+              Configuration:
+                ActionMode: REPLACE_ON_FAILURE
+                RoleArn: !GetAtt [RoleCFN, Arn]
+
+                # Create a TestStack CloudFormation Template
+                StackName: !Ref ParamTestStackName
+
+                # Address the template file and it's config
+
+                # Lookup with replacing the BranchOfFilesOrArtifacts with ParamTestStackConfig= CodePipeLine-test-stack-configuration.json (file/artifact)
+                TemplateConfiguration: !Sub "BranchOfFilesOrArtifacts::${ParamTestStackConfig}"
+
+                # Lookup with replacing the BranchOfFilesOrArtifacts with ParamTemplateFileName= wordpress-single-instance.yaml (file/artifact)
+                TemplatePath: !Sub "BranchOfFilesOrArtifacts::${ParamTemplateFileName}"
+              RunOrder: 1
+
+            # Getting Approval for creating changeset against Production and delete TestStack (throuth sending an email)
+            - Name: ApproveTestStack
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: '1'
+              Configuration:
+                NotificationArn: !Ref ResoCodePipelineSNSTopic
+                CustomData: !Sub 'Do you want to create a change set against the production stack and delete the ${ParamTestStackName} stack?'
+              RunOrder: 2
+            
+            # Delete TestStack
+            - Name: DeleteTestStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: DELETE_ONLY
+                RoleArn: !GetAtt [ResoRoleCFN, Arn]
+                StackName: !Ref ParamTestStackName
+              RunOrder: 3
+
+        # Production staging
+        - Name: ProdStage
+          Actions:
+          # Creating changeset in Production
+            - Name: CreateChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              InputArtifacts:
+                - Name: BranchOfFilesOrArtifacts
+              Configuration:
+                ActionMode: CHANGE_SET_REPLACE
+                RoleArn: !GetAtt [ResoRoleCFN, Arn]
+                StackName: !Ref ParamProdStackName
+                ChangeSetName: !Ref ParamChangeSetName
+
+                # Address the template file and it's config
+
+                # Lookup with replacing the BranchOfFilesOrArtifacts with ParamTestStackConfig= CodePipeLine-prod-stack-configuration.json (file/artifact)                                
+                TemplateConfiguration: !Sub "BranchOfFilesOrArtifacts::${ParamProdStackConfig}"
+
+                # Lookup with replacing the BranchOfFilesOrArtifacts with ParamTemplateFileName= wordpress-single-instance.yaml (file/artifact)             
+                TemplatePath: !Sub "BranchOfFilesOrArtifacts::${ParamTemplateFileName}"
+              RunOrder: 1            
+
+            # Getting Approval for implementing changeset in Production (throuth sending an email)
+            - Name: ApproveChangeSet
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: '1'
+              Configuration:
+                NotificationArn: !Ref ResoCodePipelineSNSTopic
+                CustomData: !Sub 'A new change set was created for the ${ParamProdStackName} stack. Do you want to implement the changes?'
+              RunOrder: 2
+
+              # Implement/Execute/Deploy changeset in Production 
+            - Name: ExecuteChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                ChangeSetName: !Ref ParamChangeSetName
+                RoleArn: !GetAtt [ResoRoleCFN, Arn]
+                StackName: !Ref ParamProdStackName
+              RunOrder: 3
+  
+  ResoRoleCFN:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: ['sts:AssumeRole']
+          Effect: Allow
+          Principal:
+            Service: [cloudformation.amazonaws.com]
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+        - PolicyName: CloudFormationRole
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - 'ec2:*'
+                Effect: Allow
+                Resource: '*'
+              
+  ResoRolePipeline:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action: ['sts:AssumeRole']
+          Effect: Allow
+          Principal:
+            Service: [codepipeline.amazonaws.com]
+        Version: '2012-10-17'
+      Path: /
+      Policies:
+        - PolicyName: CodePipelineAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                - 's3:*'
+                - 'cloudformation:CreateStack'
+                - 'cloudformation:DescribeStacks'
+                - 'cloudformation:DeleteStack'
+                - 'cloudformation:UpdateStack'
+                - 'cloudformation:CreateChangeSet'
+                - 'cloudformation:ExecuteChangeSet'
+                - 'cloudformation:DeleteChangeSet'
+                - 'cloudformation:DescribeChangeSet'
+                - 'cloudformation:SetStackPolicy'
+                - 'iam:PassRole'
+                - 'sns:Publish'
+                Effect: Allow
+                Resource: '*'
