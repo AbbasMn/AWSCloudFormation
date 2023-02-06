@@ -109,7 +109,7 @@ Resources:
         #  ParamFilesOrArtifactsNameForDeploy= CodePipeLine-wordpress-single-instance.zip
         - Name: BranchOfFilesOrArtifactsInS3
           Actions:
-            - Name: BranchOfFilesOrArtifacts
+            - Name: CfnTemplateFilesOrArtifacts
               ActionTypeId:
                 Category: Source
                 Owner: AWS
@@ -119,13 +119,13 @@ Resources:
                 S3Bucket: !Ref 'ParamBranchOfFilesOrArtifactsInS3'
                 S3ObjectKey: !Ref 'ParamFilesOrArtifactsNameForDeploy'
               OutputArtifacts:
-                - Name: BranchOfFilesOrArtifacts
+                - Name: CfnTemplateFilesOrArtifacts
               RunOrder: 1
 
         # Test staging
         - Name: TestStage
           Actions:
-            # Creating TestStack through CloudFormation from S3 BranchOfFilesOrArtifacts:           
+            # Creating TestStack through CloudFormation from S3 CfnTemplateFilesOrArtifacts:           
             - Name: CreateStack
               ActionTypeId:
                 Category: Deploy
@@ -133,7 +133,7 @@ Resources:
                 Provider: CloudFormation
                 Version: '1'
               InputArtifacts:
-                - Name: BranchOfFilesOrArtifacts
+                - Name: CfnTemplateFilesOrArtifacts
               Configuration:
                 ActionMode: REPLACE_ON_FAILURE
                 RoleArn: !GetAtt [RoleCFN, Arn]
@@ -143,11 +143,11 @@ Resources:
 
                 # Address the template file and it's config
 
-                # Lookup with replacing the BranchOfFilesOrArtifacts with ParamTestStackConfig= CodePipeLine-test-stack-configuration.json (file/artifact)
-                TemplateConfiguration: !Sub "BranchOfFilesOrArtifacts::${ParamTestStackConfig}"
+                # Lookup with replacing the CfnTemplateFilesOrArtifacts with ParamTestStackConfig= CodePipeLine-test-stack-configuration.json (file/artifact)
+                TemplateConfiguration: !Sub "CfnTemplateFilesOrArtifacts::${ParamTestStackConfig}"
 
-                # Lookup with replacing the BranchOfFilesOrArtifacts with ParamTemplateFileName= wordpress-single-instance.yaml (file/artifact)
-                TemplatePath: !Sub "BranchOfFilesOrArtifacts::${ParamTemplateFileName}"
+                # Lookup with replacing the CfnTemplateFilesOrArtifacts with ParamTemplateFileName= wordpress-single-instance.yaml (file/artifact)
+                TemplatePath: !Sub "CfnTemplateFilesOrArtifacts::${ParamTemplateFileName}"
               RunOrder: 1
 
             # Getting Approval for creating changeset against Production and delete TestStack (throuth sending an email)
@@ -186,7 +186,7 @@ Resources:
                 Provider: CloudFormation
                 Version: '1'
               InputArtifacts:
-                - Name: BranchOfFilesOrArtifacts
+                - Name: CfnTemplateFilesOrArtifacts
               Configuration:
                 ActionMode: CHANGE_SET_REPLACE
                 RoleArn: !GetAtt [ResoRoleCFN, Arn]
@@ -195,11 +195,11 @@ Resources:
 
                 # Address the template file and it's config
 
-                # Lookup with replacing the BranchOfFilesOrArtifacts with ParamTestStackConfig= CodePipeLine-prod-stack-configuration.json (file/artifact)                                
-                TemplateConfiguration: !Sub "BranchOfFilesOrArtifacts::${ParamProdStackConfig}"
+                # Lookup with replacing the CfnTemplateFilesOrArtifacts with ParamTestStackConfig= CodePipeLine-prod-stack-configuration.json (file/artifact)                                
+                TemplateConfiguration: !Sub "CfnTemplateFilesOrArtifacts::${ParamProdStackConfig}"
 
-                # Lookup with replacing the BranchOfFilesOrArtifacts with ParamTemplateFileName= wordpress-single-instance.yaml (file/artifact)             
-                TemplatePath: !Sub "BranchOfFilesOrArtifacts::${ParamTemplateFileName}"
+                # Lookup with replacing the CfnTemplateFilesOrArtifacts with ParamTemplateFileName= wordpress-single-instance.yaml (file/artifact)             
+                TemplatePath: !Sub "CfnTemplateFilesOrArtifacts::${ParamTemplateFileName}"
               RunOrder: 1            
 
             # Getting Approval for implementing changeset in Production (throuth sending an email)
