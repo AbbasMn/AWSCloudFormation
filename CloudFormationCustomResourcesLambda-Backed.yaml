@@ -1,0 +1,113 @@
+# Custom Resources with AWS Lambda (Lambda-Backed Custom Resources):
+# -You can’t delete a non-empty S3 bucket
+# -To delete a non-empty S3 bucket, you must first delete all the objects inside it.
+# -We’ll create custom resource with AWS Lambda that will be used to empty an S3 bucket before deleting it.
+
+
+# the user will run a delete stack on a CloudFormation template, and the stack will have a custom resource backed by a 
+# lambda function and this lambda function will have a script to run to empty the S3 bucket. And then when this is done, 
+# then CloudFormation will be able to delete the S3 bucket itself.
+
+# the important stuff is that the Lambda function has some code, and so it's going to be invoked every time we create, 
+# update, or delete this text. So actually we created this text so the lambda function should have been invoked already once.
+
+Parameters:
+  ParamS3BucketName:
+    Type: String
+    Description: "S3 bucket to create"
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9_-]*"
+
+Resources:
+  ResoSampleS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref ParamS3BucketName
+    DeletionPolicy: Delete
+
+  ResoS3CustomResourceLambdaBacked:
+    Type: Custom::S3CustomResource
+    Properties:
+      # ServiceToken refrences eithe SNS topic or Lambda topic
+      # here Lambda topic
+      ServiceToken: !GetAtt ResoAWSLambdaFunction.Arn 
+      bucket_name: !Ref ResoSampleS3Bucket    ## Additional parameter here
+
+  ResoAWSLambdaFunction:
+     Type: AWS::Lambda::Function
+     Properties:
+       Description: "Empty an S3 bucket!"
+       FunctionName: !Sub '${AWS::StackName}-${AWS::Region}-lambda'
+       Handler: index.handler
+       Role: !GetAtt ResoRoleAWSLambdaExecutionRole.Arn
+       Timeout: 360
+       Runtime: python3.8
+       Code: #Inline code
+         ZipFile: |
+          import boto3
+          import cfnresponse
+          ### cfnresponse module help in sending responses to CloudFormation
+          ### instead of writing your own code
+
+          def handler(event, context):
+              # Get request type
+              the_event = event['RequestType']        
+              print("The event is: ", str(the_event))
+
+              response_data = {}
+              s3 = boto3.client('s3')
+
+              # Retrieve parameters (bucket name)
+              bucket_name = event['ResourceProperties']['bucket_name']
+              
+              try:
+                  if the_event == 'Delete':
+                      print("Deleting S3 content...")
+                      b_operator = boto3.resource('s3')
+                      b_operator.Bucket(str(bucket_name)).objects.all().delete()
+
+                  # Everything OK... send the signal back
+                  print("Execution succesfull!")
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, response_data)
+              except Exception as e:
+                  print("Execution failed...")
+                  print(str(e))
+                  response_data['Data'] = str(e)
+                  cfnresponse.send(event, context, cfnresponse.FAILED, response_data)
+
+  ResoRoleAWSLambdaExecutionRole:
+     Type: AWS::IAM::Role
+     Properties:
+       AssumeRolePolicyDocument:
+         Statement:
+         - Action:
+           - sts:AssumeRole
+           Effect: Allow
+           Principal:
+             Service:
+             - lambda.amazonaws.com
+         Version: '2012-10-17'
+       Path: "/"
+       Policies:
+       - PolicyDocument:
+           Statement:
+           - Action:
+             - logs:CreateLogGroup
+             - logs:CreateLogStream
+             - logs:PutLogEvents
+             Effect: Allow
+             Resource: arn:aws:logs:*:*:*
+           Version: '2012-10-17'
+         PolicyName: !Sub ${AWS::StackName}-${AWS::Region}-AWSLambda-CW
+       - PolicyDocument:
+           Statement:
+           - Action:
+             - s3:PutObject
+             - s3:DeleteObject
+             - s3:List*
+             Effect: Allow
+             Resource:
+             - !Sub arn:aws:s3:::${ResoSampleS3Bucket}
+             - !Sub arn:aws:s3:::${ResoSampleS3Bucket}/*
+           Version: '2012-10-17'
+         PolicyName: !Sub ${AWS::StackName}-${AWS::Region}-AWSLambda-S3
+       RoleName: !Sub ${AWS::StackName}-${AWS::Region}-ResoRoleAWSLambdaExecutionRole

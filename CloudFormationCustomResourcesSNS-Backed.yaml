@@ -1,0 +1,33 @@
+# Custom Resources with SNS (SNS-Backed Custom Resources):
+# -We’ll create a custom resource that publishes requests to SNS topic
+# -This SNS topic will publish to an HTTP endpoint, which will  handle all custom resource requests
+
+
+# it's a bit more complicated and would recommend to have Lambda first, if you can, So we have the user that will create update and delete 
+# the CloudFormation template.
+# The stack we'll have a Custom Resource backed by an SNSTopic, and there will be a subscriber to the SNSTopic, which is going to be an 
+# HTTP endpoint.
+# So SNS is going to publish information into this HTTP subscriber. And then the subscriber will do a posting to a web server and do some 
+# actions before sending back the data to cloud formation.
+
+# Okay, so let's create a web server and this web server will be listening to requests coming from SNS.
+
+# This is going to install node js. So we just run the setup of node js like this. And then we do yum install node js. Then we install our 
+# application.
+# So we create a web server directory. We initialize an NPM. So a node js project, then install a few libraries such as express buddy-parser, 
+# chalk and most importantly cfn-response which is a similar library to where we had a when we were doing with the Python example with lamba X. 
+# So this is going to help us give a response back into CloudFormation, and then we're going to own the directory with the user to fix 
+# permissions in terms of files.
+
+# We're going to create a new security group with a custom TCP rule on port 8080. This is where it's going to be listening for incoming HTTP requests.
+
+# that the instance is going to be launched. We will SSH into it and then we will install a file name serve.js is a node js file so don't 
+# worry too much about it.
+
+# And then finally, we're going to run this server and to do so, we'll just type in node server.js And now we have an HTTP server that 
+# is listening on port 8080.
+
+# So we're creating an SNSTopic right now. And what should happen is that the SNSTopic should create a subscription. And that subscription 
+# should arrive into our web server if everything is working properly.
+
+# The Custom Resource should send a message into SNS and then the SNS forwards the message into our EC2 instance web server.

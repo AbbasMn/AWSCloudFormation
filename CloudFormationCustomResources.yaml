@@ -1,0 +1,44 @@
+# Custom Resources Overview
+# talk about some advanced cloud formation resources. And the first one is Custom Resources. So it Enable you to write custom provision 
+# logic in templates that AWS CloudFormation runs anytime you create, update, delete stacks. So the way it works is that you define a 
+# new templates.
+# Defined in the template using AWS::CloudFormation::CustomResource or directly using Custom::MyCustomResourceTypeName, which is a 
+# more recommended form.
+
+# two types of custom resources exist in CloudFormation. 
+#   1.Amazon SNS-backed customer sources 
+#   2.Amazon Lambda-backed customer sources 
+
+# So the use cases of a Custom Resource 
+#   •AWS resource that is not covered yet (new service for example), a new service, and you really need it right now. 
+#     So you can write your own custom resource
+#   •if you have an on-premises resource that you want to manage then you could manage it
+#   •run some logic during your template. For example, running a Lambda function to empty an S3 bucket before the 
+#     S3 bucket itself is being deleted 
+#   •fetch an AMI id. Although now the Parameter Store is a much better way of doing things or 
+#   •really anything you want. 
+
+# So how do you define a Custom Resource? Well, there are two parts.
+#   1.ServiceToken, which specifies where the CloudFormation will send the request to such as a Lambda ARN or an 
+#     SNS topic ARN (required), which is required and it must be in the same region.
+#   2.input data parameters (optional) coming from the templates. So it is possible for you to really send some 
+#     data into the targets of SNS or on the functions. And again, out of this Custom Resource you can get some attributes 
+#     and some data that you can use for example, in outputs or in other resources.
+
+# How does Custom Resources work?
+# we have the template developers and they create a template with a custom resource then they will upload it into CloudFormation 
+# and anytime CloudFormation runs a create, update or delete, it will send an invoke the resource provider that could be a 
+# Lambda function or an SNS topic.
+
+# And on top of it, CloudFormation will send a request that will contain the S3 pre-signed URL for the response because why, 
+# because cloud formation actually will listen on an S3 buckets and that S3 bucket will be how to respond to the CloudFormation, 
+# Custom Resource creation.
+
+# So your resource provider can do whatever he wants. So Lambda function can do API calls or provision resources, or send for 
+# SNS topic, we'll see how it works in a second. 
+
+# And then once the response is ready, then it must be, it must be uploaded in JSON formats, okay, to Amazon S3, using the 
+# pre-signed URL given by CloudFormation.
+
+# And from the CloudFormation will find that the response has been uploaded to Amazon S3 and then we'll make its conclusion
+#  as to whether or not there was a success or a failure.
