@@ -41,11 +41,11 @@ Parameters:
     Description: A name for pipeline
     Type: String
 
-  ParamBranchOfFilesOrArtifactsInS3:
+  ParamS3BucketContainsFilesOrArtifacts:
     Description: The name of the S3 bucket that contains the source artifact, which must be in the same region as this stack
     Type: String
 
-  ParamFilesOrArtifactsNameForDeploy:
+  ParamFilesOrArtifactsNameForDeployOrS3ObjectKey:
     Default: CodePipeLine-wordpress-single-instance.zip
     Description: The file name of the source artifact, such as myfolder/myartifact.zip
     Type: String
@@ -91,8 +91,8 @@ Metadata:
           default: "CodePipeline Settings" # Group Parameters together
         Parameters:
           - ParamPipelineName
-          - ParamBranchOfFilesOrArtifactsInS3
-          - ParamFilesOrArtifactsNameForDeploy
+          - ParamS3BucketContainsFilesOrArtifacts
+          - ParamFilesOrArtifactsNameForDeployOrS3ObjectKey
           - ParamEmail
       - Label:
           default: "Test Stack Settings" # Group Parameters together
@@ -132,7 +132,7 @@ Resources:
       RoleArn: !GetAtt [ResoRolePipeline, Arn]
       Stages:
         # Define a S3 bucket as S3 bucket that contains the source artifacts (files), which must be in the same region as this stack
-        #  ParamFilesOrArtifactsNameForDeploy= CodePipeLine-wordpress-single-instance.zip
+        #  ParamFilesOrArtifactsNameForDeployOrS3ObjectKey= CodePipeLine-wordpress-single-instance.zip
         - Name: BranchOfFilesOrArtifactsInS3
           Actions:
             - Name: CfnTemplateFilesOrArtifacts
@@ -145,8 +145,8 @@ Resources:
                 Provider: S3
                 Version: '1'
               Configuration:
-                S3Bucket: !Ref 'ParamBranchOfFilesOrArtifactsInS3'
-                S3ObjectKey: !Ref 'ParamFilesOrArtifactsNameForDeploy'
+                S3Bucket: !Ref 'ParamS3BucketContainsFilesOrArtifacts'
+                S3ObjectKey: !Ref 'ParamFilesOrArtifactsNameForDeployOrS3ObjectKey'
               OutputArtifacts:
                 - Name: CfnTemplateFilesOrArtifacts
               RunOrder: 1
